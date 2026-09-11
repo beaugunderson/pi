@@ -29,16 +29,23 @@ The [complete minimal example](../examples/sdk/01-minimal.ts) also streams text 
 
 Read current state through `session.messages`, `session.model`, `session.thinkingLevel`, `session.systemPrompt`, and `session.getActiveToolNames()`.
 
-Sessions are persistent by default. Supply a `SessionManager` to choose another storage policy:
+<a id="sessionmanager-api"></a>
+
+### Session storage
+
+Sessions are persistent by default. `SessionManager` owns the persisted or in-memory entry tree and tracks its active leaf. Branching changes that leaf without deleting abandoned branches. When Pi reconstructs model context, the manager selects the active branch and applies compaction.
+
+Use an in-memory manager when the host does not want session files:
 
 ```typescript
-import { SessionManager } from "@earendil-works/pi-coding-agent";
+import { createAgentSession, SessionManager } from "@earendil-works/pi-coding-agent";
 
-const transientSessions = SessionManager.inMemory();
-const persistentSessions = SessionManager.create(process.cwd());
+const { session } = await createAgentSession({
+  sessionManager: SessionManager.inMemory(),
+});
 ```
 
-Pass the selected manager as `sessionManager` when creating the session. The [sessions example](../examples/sdk/11-sessions.ts) shows how to create, continue, list, and open sessions.
+See the checked [sessions example](../examples/sdk/11-sessions.ts) for creating, opening, continuing, listing, and forking sessions. [Session File Format](session-format.md) defines the persisted JSONL contract, and [Message Types](message-types.md) defines transcript values. For exact methods and signatures, use the exported TypeScript declarations or [`session-manager.ts`](../src/core/session-manager.ts).
 
 `cwd` selects the workspace used for project resource discovery, context files, session grouping, and built-in tool paths. Pass it explicitly when the target differs from `process.cwd()`.
 
@@ -126,6 +133,6 @@ See the focused examples for [models](../examples/sdk/02-custom-model.ts), [tool
 
 - [Choose a Model](models-and-providers.md) covers model selection and authentication; [Provider Setup](provider-reference.md) and [Custom Models](models.md) provide exact configuration.
 - [Configuration](configuration.md) explains normal discovery and settings; [Settings](settings-reference.md) lists every setting.
-- [Sessions and Context](sessions-and-context.md) explains session behavior; [Session Format](session-format.md) defines persisted entries.
+- [Sessions and Context](sessions-and-context.md) explains session behavior; [Session Format](session-format.md) defines persisted entries; [Message Types](message-types.md) defines shared transcript values.
 - [Extensions](extensions.md), [Skills](skills.md), and [Prompt Templates](prompt-templates.md) document resources supplied through a `ResourceLoader`.
 - [CLI Integration](cli-integration.md) covers print, JSON, and RPC alternatives to an in-process SDK integration.
