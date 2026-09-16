@@ -486,6 +486,16 @@ export class ProcessTerminal implements Terminal {
 	}
 
 	write(data: string): void {
+		if (process.env.TERM_PROGRAM === "iTerm.app") {
+			// Message components use OSC 133 zones for navigation, but iTerm treats
+			// each prompt-start marker as a return to the shell and clears Session
+			// Status. Translate only at the output boundary so fullscreen navigation
+			// still sees the original zones. SetMark preserves iTerm mark navigation
+			// without declaring a shell prompt or command.
+			data = data.replace(/\x1b\]133;([ABC])(?:\x07|\x1b\\)/g, (_sequence, zone: string) =>
+				zone === "A" ? "\x1b]1337;SetMark\x07" : "",
+			);
+		}
 		process.stdout.write(data);
 		if (this.writeLogPath) {
 			try {
