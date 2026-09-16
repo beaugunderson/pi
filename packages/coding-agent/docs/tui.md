@@ -86,6 +86,20 @@ class SearchDialog extends Container implements Focusable {
 
 Without this propagation, typing with an IME (Chinese, Japanese, Korean, etc.) will show the candidate window in the wrong position on screen.
 
+## Message Boundaries
+
+Use `MESSAGE_START_MARKER` from `@earendil-works/pi-tui` to mark a message's first rendered line:
+
+```typescript
+return [MESSAGE_START_MARKER + "Message heading", "Message body"];
+```
+
+Like `CURSOR_MARKER`, this is zero-width internal metadata, not a shell-integration command. Fullscreen mode uses it for previous/next-message navigation and removes it from terminal output, including overlays and the exit transcript.
+
+Regular mode translates it before output chunking using the terminal adapter's optional `Terminal.messageMark`. The mark must not change shell prompt or command state. `ProcessTerminal` supplies iTerm2's `SetMark`; other terminals currently emit no native message mark. Regular-mode message jumping through synthetic OSC 133 shell prompts is no longer supported. Fullscreen message navigation remains available on every terminal.
+
+Rendering a message must not announce agent activity. Status integrations should use lifecycle events such as `agent_start` and `agent_settled` instead. Raw `Terminal.write()` calls are not rewritten.
+
 ## Using Components
 
 **In extensions** via `ctx.ui.custom()`:

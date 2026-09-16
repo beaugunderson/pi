@@ -86,8 +86,11 @@ export interface Terminal {
 	 */
 	drainInput(maxMs?: number, idleMs?: number): Promise<void>;
 
-	// Write output to terminal
+	// Write output to terminal without interpreting or rewriting it.
 	write(data: string): void;
+
+	/** Optional zero-width navigation mark that does not announce shell activity. */
+	readonly messageMark?: string;
 
 	// Get terminal dimensions
 	get columns(): number;
@@ -485,17 +488,13 @@ export class ProcessTerminal implements Terminal {
 		}
 	}
 
+	get messageMark(): string | undefined {
+		// OSC 133 shell-prompt markers are not a fallback: they can clear status
+		// indicators and trigger command notifications when a message is repainted.
+		return process.env.TERM_PROGRAM === "iTerm.app" ? "\x1b]1337;SetMark\x07" : undefined;
+	}
+
 	write(data: string): void {
-		if (process.env.TERM_PROGRAM === "iTerm.app") {
-			// Message components use OSC 133 zones for navigation, but iTerm treats
-			// each prompt-start marker as a return to the shell and clears Session
-			// Status. Translate only at the output boundary so fullscreen navigation
-			// still sees the original zones. SetMark preserves iTerm mark navigation
-			// without declaring a shell prompt or command.
-			data = data.replace(/\x1b\]133;([ABC])(?:\x07|\x1b\\)/g, (_sequence, zone: string) =>
-				zone === "A" ? "\x1b]1337;SetMark\x07" : "",
-			);
-		}
 		process.stdout.write(data);
 		if (this.writeLogPath) {
 			try {

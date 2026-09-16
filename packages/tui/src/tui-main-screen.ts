@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { MESSAGE_START_MARKER } from "./message-marker.ts";
 import { deleteKittyImage, isImageLine } from "./terminal-image.ts";
 import { type TUI, TuiBase, type TuiStopOptions } from "./tui.ts";
 import { visibleWidth } from "./utils.ts";
@@ -267,6 +268,11 @@ export class TuiMainScreen extends TuiBase implements TUI {
 		if (this.hasOverlayEntries) {
 			newLines = this.compositeOverlays(newLines, width, height);
 		}
+
+		// Consume message metadata while lines are whole, before output chunking.
+		// Only terminals with a neutral mark protocol get native message navigation.
+		const messageMark = this.terminal.messageMark ?? "";
+		newLines = newLines.map((line) => line.replaceAll(MESSAGE_START_MARKER, messageMark));
 
 		// Extract cursor position before applying line resets (marker must be found first)
 		const cursorPos = this.extractCursorPosition(newLines, height);

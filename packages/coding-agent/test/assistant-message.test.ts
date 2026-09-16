@@ -1,14 +1,10 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import type { TuiMouseEvent } from "@earendil-works/pi-tui";
+import { MESSAGE_START_MARKER, type TuiMouseEvent } from "@earendil-works/pi-tui";
 import { describe, expect, test } from "vitest";
 import { AssistantMessageComponent } from "../src/modes/interactive/components/assistant-message.ts";
 import { UserMessageComponent } from "../src/modes/interactive/components/user-message.ts";
 import { initTheme } from "../src/modes/interactive/theme/theme.ts";
 import { stripAnsi } from "../src/utils/ansi.ts";
-
-const OSC133_ZONE_START = "\x1b]133;A\x07";
-const OSC133_ZONE_END = "\x1b]133;B\x07";
-const OSC133_ZONE_FINAL = "\x1b]133;C\x07";
 
 function createAssistantMessage(
 	content: AssistantMessage["content"],
@@ -34,18 +30,24 @@ function createAssistantMessage(
 }
 
 describe("AssistantMessageComponent", () => {
-	test("adds OSC 133 zone markers to assistant messages without tool calls", () => {
+	test("marks assistant message boundaries without shell activity on render or redraw", () => {
 		initTheme("dark");
 
 		const component = new AssistantMessageComponent(createAssistantMessage([{ type: "text", text: "hello" }]));
 		const lines = component.render(40);
 
 		expect(lines).not.toHaveLength(0);
-		expect(lines[0]).toContain(OSC133_ZONE_START);
-		expect(lines[lines.length - 1].startsWith(OSC133_ZONE_END + OSC133_ZONE_FINAL)).toBe(true);
+		expect(lines[0]).toContain(MESSAGE_START_MARKER);
+		expect(lines.join("\n")).not.toContain("\x1b]133;");
+		component.updateContent(createAssistantMessage([{ type: "text", text: "hello again" }]), true);
+		for (const width of [40, 20]) {
+			const redraw = component.render(width).join("\n");
+			expect(redraw).toContain(MESSAGE_START_MARKER);
+			expect(redraw).not.toContain("\x1b]133;");
+		}
 	});
 
-	test("does not add OSC 133 zone markers when assistant message contains tool calls", () => {
+	test("does not mark assistant messages containing tool calls", () => {
 		initTheme("dark");
 
 		const component = new AssistantMessageComponent(
@@ -56,9 +58,8 @@ describe("AssistantMessageComponent", () => {
 		);
 		const rendered = component.render(60).join("\n");
 
-		expect(rendered.includes(OSC133_ZONE_START)).toBe(false);
-		expect(rendered.includes(OSC133_ZONE_END)).toBe(false);
-		expect(rendered.includes(OSC133_ZONE_FINAL)).toBe(false);
+		expect(rendered).not.toContain(MESSAGE_START_MARKER);
+		expect(rendered).not.toContain("\x1b]133;");
 	});
 
 	test("renders length stops with neutral truncation wording", () => {

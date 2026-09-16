@@ -1,6 +1,7 @@
 import type { ScrollView } from "./components/scroll-view.ts";
 import { allocateStackSizes, visibleStackEntries } from "./components/stack.ts";
 import { getLayoutNode } from "./layout-node.ts";
+import { MESSAGE_START_MARKER } from "./message-marker.ts";
 import { cropKittyImageLine, getKittyImageMetadata, isImageLine } from "./terminal-image.ts";
 import { type Component, CURSOR_MARKER, compositeTuiLine } from "./tui.ts";
 import {
@@ -10,8 +11,6 @@ import {
 	sliceByColumn,
 	visibleWidth,
 } from "./utils.ts";
-
-const OSC133_ZONE_PREFIX = /^(?:\x1b\]133;[ABC](?:\x07|\x1b\\))+/;
 
 export interface LayoutRect {
 	x: number;
@@ -335,7 +334,7 @@ function paintBox(box: LayoutBox, screen: string[], totalWidth: number): void {
 		for (let row = firstRow; row < lastRow; row++) {
 			const sourceLine = box.lines[offset + row - box.rect.y];
 			if (sourceLine === undefined) continue;
-			let line = sourceLine.replace(OSC133_ZONE_PREFIX, "");
+			let line = sourceLine.replaceAll(MESSAGE_START_MARKER, "");
 			const imageMetadata = getKittyImageMetadata(line);
 			if (imageMetadata) {
 				const clipBottom = Math.min(screen.length, box.clip.y + box.clip.height);

@@ -237,9 +237,9 @@ describe("ProcessTerminal Kitty keyboard protocol negotiation", () => {
 	});
 });
 
-describe("ProcessTerminal message markers", () => {
+describe("ProcessTerminal output", () => {
 	for (const terminator of ["\x07", "\x1b\\"]) {
-		it(`uses iTerm marks without shell-prompt status resets (${JSON.stringify(terminator)})`, () => {
+		it(`preserves intentional shell sequences without rewriting (${JSON.stringify(terminator)})`, () => {
 			const previousTermProgram = process.env.TERM_PROGRAM;
 			const previousWrite = process.stdout.write;
 			const writes: string[] = [];
@@ -252,11 +252,9 @@ describe("ProcessTerminal message markers", () => {
 			try {
 				const terminal = new ProcessTerminal();
 				const frame = `\x1b[?2026h\x1b]133;A${terminator}message\n\x1b]133;B${terminator}\x1b]133;C${terminator}\x1b[?2026l`;
-				// Streaming and redraws must not tell iTerm a new shell prompt started:
-				// PTYSession.screenPromptDidStartAtLine clears Session Status on OSC 133;A.
 				terminal.write(frame);
-				terminal.write(frame);
-				assert.deepEqual(writes, Array(2).fill("\x1b[?2026h\x1b]1337;SetMark\x07message\n\x1b[?2026l"));
+				for (const character of frame) terminal.write(character);
+				assert.equal(writes.join(""), frame + frame);
 			} finally {
 				process.stdout.write = previousWrite;
 				if (previousTermProgram === undefined) delete process.env.TERM_PROGRAM;
@@ -283,11 +281,9 @@ describe("ProcessTerminal message markers", () => {
 					"text\x1b[31mred\x1b[0m\x1b]21337;status=working\x07\x1b]1337;File=AAAA\x07\x1b]133;D;0\x07";
 				terminal.write(unrelated);
 				assert.deepEqual(writes, [unrelated]);
-				if (termProgram !== "iTerm.app") {
-					const markers = "\x1b]133;A\x07message\x1b]133;B\x07\x1b]133;C\x07";
-					terminal.write(markers);
-					assert.equal(writes[1], markers);
-				}
+				const markers = "\x1b]133;A\x07message\x1b]133;B\x07\x1b]133;C\x07";
+				terminal.write(markers);
+				assert.equal(writes[1], markers);
 			} finally {
 				process.stdout.write = previousWrite;
 				if (previousTermProgram === undefined) delete process.env.TERM_PROGRAM;

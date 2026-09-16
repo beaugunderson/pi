@@ -13,6 +13,7 @@ import { SelectList } from "../src/components/select-list.ts";
 import { Text } from "../src/components/text.ts";
 import { VStack } from "../src/components/v-stack.ts";
 import { getKeybindings, KeybindingsManager, setKeybindings, TUI_KEYBINDINGS } from "../src/keybindings.ts";
+import { MESSAGE_START_MARKER } from "../src/message-marker.ts";
 import {
 	encodeKitty,
 	hyperlink,
@@ -24,8 +25,6 @@ import type { TuiMouseEvent } from "../src/tui.ts";
 import { TuiAltScreen } from "../src/tui-alt-screen.ts";
 import { stripTerminalSequences, visibleWidth } from "../src/utils.ts";
 import { VirtualTerminal } from "./virtual-terminal.ts";
-
-const OSC133_ZONE_START = "\x1b]133;A\x07";
 
 class InputOverlay {
 	focused = false;
@@ -872,12 +871,14 @@ describe("TuiAltScreen", () => {
 		tui.stop();
 	});
 
-	it("jumps between OSC 133 semantic prompt markers", async () => {
+	it("jumps between internal message markers", async () => {
 		const terminal = new VirtualTerminal(20, 3);
 		const tui = new TuiAltScreen(terminal);
 		tui.addChild(
 			new Text(
-				[1, 2, 3, 4].flatMap((message) => [`${OSC133_ZONE_START}message ${message}`, "detail"]).join("\n"),
+				[1, 2, 3, 4]
+					.flatMap((message) => [`\x1b[0m${MESSAGE_START_MARKER}message ${message}`, "detail"])
+					.join("\n"),
 				0,
 				0,
 			),
@@ -912,13 +913,13 @@ describe("TuiAltScreen", () => {
 		tui.stop();
 	});
 
-	it("does not emit Kitty graphics commands or OSC 133 zones in iTerm2", async () => {
+	it("does not emit Kitty graphics commands or internal message markers in iTerm2", async () => {
 		setCapabilities({ images: "iterm2", trueColor: true, hyperlinks: true });
 		try {
 			const terminal = new RecordingTerminal(20, 3);
 			const tui = new TuiAltScreen(terminal);
 			tui.addChild({
-				render: () => ["\x1b]133;B\x07\x1b]133;C\x07\x1b]133;A\x07content"],
+				render: () => [`${MESSAGE_START_MARKER}content`],
 				invalidate: () => {},
 			});
 			tui.addChild(
@@ -935,6 +936,9 @@ describe("TuiAltScreen", () => {
 			tui.stop();
 			assert.ok(terminal.events.every((event) => event.type !== "write" || !event.data.includes("\x1b_G")));
 			assert.ok(terminal.events.every((event) => event.type !== "write" || !event.data.includes("\x1b]133;")));
+			assert.ok(
+				terminal.events.every((event) => event.type !== "write" || !event.data.includes(MESSAGE_START_MARKER)),
+			);
 			assert.ok(terminal.events.every((event) => event.type !== "write" || !event.data.includes("\x1b]1337;File=")));
 			assert.ok(terminal.events.some((event) => event.type === "write" && event.data.includes("[Image:")));
 		} finally {

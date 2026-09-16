@@ -18,6 +18,7 @@ import {
 	type ScrollbarGeometry,
 } from "./layout.ts";
 import { getLayoutNode } from "./layout-node.ts";
+import { MESSAGE_START_MARKER } from "./message-marker.ts";
 import type { Terminal } from "./terminal.ts";
 import {
 	deleteAllKittyImages,
@@ -69,8 +70,6 @@ const FOCUS_IN = "\x1b[I";
 const FOCUS_OUT = "\x1b[O";
 const BEGIN_SYNCHRONIZED_OUTPUT = "\x1b[?2026h";
 const END_SYNCHRONIZED_OUTPUT = "\x1b[?2026l";
-const OSC133_ZONE_PREFIX = /^(?:\x1b\]133;[ABC](?:\x07|\x1b\\))+/;
-const OSC133_PROMPT_START = /^\x1b\]133;A(?:\x07|\x1b\\)/;
 const PAGE_SCROLL_OVERLAP = 4;
 const ALT_WHEEL_SCROLL_MULTIPLIER = 5;
 const MAX_CACHED_OFFSCREEN_KITTY_IMAGES = 16;
@@ -385,7 +384,7 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 			this.terminal.write(`${BEGIN_SYNCHRONIZED_OUTPUT}${EXIT_ALT_SCREEN}\x1b[?25h${END_SYNCHRONIZED_OUTPUT}`);
 		} else {
 			const width = Math.max(1, this.terminal.columns);
-			const documentLines = this.render(width).map((line) => line.replace(OSC133_ZONE_PREFIX, ""));
+			const documentLines = this.render(width).map((line) => line.replaceAll(MESSAGE_START_MARKER, ""));
 			this.lastDocument = this.applyLineResets(documentLines.map((line) => line.replaceAll(CURSOR_MARKER, ""))).map(
 				(line) => (isImageLine(line) || visibleWidth(line) <= width ? line : sliceByColumn(line, 0, width, true)),
 			);
@@ -486,7 +485,7 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 		if (!lines) return;
 
 		for (let row = scrollView.scrollTop + direction; row >= 0 && row < lines.length; row += direction) {
-			if (!OSC133_PROMPT_START.test(lines[row] ?? "")) continue;
+			if (!lines[row]?.includes(MESSAGE_START_MARKER)) continue;
 			scrollView.scrollTo(row);
 			this.requestRender();
 			return;
@@ -1658,7 +1657,7 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 		if (this.refreshSearch(nextLayout)) {
 			nextLayout = renderLayoutFrame(root, width, height, () => this.requestRender());
 		}
-		let screen = nextLayout.lines.map((line) => line.replace(OSC133_ZONE_PREFIX, ""));
+		let screen = nextLayout.lines;
 		screen = this.applySearchHighlights(screen, nextLayout);
 		screen = this.compositeScrollToEndIndicator(screen, nextLayout, width);
 		screen = this.compositeOverlays(screen, width, height);
@@ -1666,6 +1665,8 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 		screen = this.applySelection(screen, nextLayout);
 		screen = this.compositeFlashes(screen, width, height);
 
+		// Layout consumes transcript markers; overlays and flashes may add their own.
+		screen = screen.map((line) => line.replaceAll(MESSAGE_START_MARKER, ""));
 		const cursorPos = this.extractCursorPosition(screen, height);
 		screen = this.applyLineResets(screen).map((line) => {
 			if (isImageLine(line) || visibleWidth(line) <= width) return line;
